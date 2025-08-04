@@ -11,7 +11,8 @@ ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
 RUN xx-go mod download
 
-COPY . .
+COPY pkg ./pkg/
+COPY cmd ./cmd/
 
 FROM --platform=$BUILDPLATFORM builder AS build-webhook
 RUN xx-go build ./cmd/webhook && xx-verify ./webhook
