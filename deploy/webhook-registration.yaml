@@ -1,0 +1,37 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: minio-sts-webhook-configuration
+  annotations:
+    # If you have issued the webhook certificate with cert-manager, then
+    # the ca-injector can add the appropriate CA certificate to the webhook
+    # configuration for you.
+    cert-manager.io/inject-ca-from: minio-sts/sts-webhook
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      # If you are not using cert-manager, you must insert the relevant CA
+      # data here
+      #caBundle: "..."
+      service:
+        name: sts-webhook
+        namespace: sts-webhook
+        path: /mutate-v1-pod
+    name: sts.gate.ac.uk
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    objectSelector:
+      matchLabels:
+        sts.gate.ac.uk/use: "true"
+    reinvocationPolicy: IfNeeded
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - pods
+    sideEffects: None

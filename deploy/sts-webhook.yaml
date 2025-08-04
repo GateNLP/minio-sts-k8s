@@ -1,0 +1,120 @@
+# Deployment and Service for the admission webhook - configurable values
+# are indicated with comments
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sts-webhook
+  namespace: minio-sts
+  labels:
+    app.kubernetes.io/name: sts-webhook
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sts-webhook
+  template:
+    metadata:
+      name: sts-webhook
+      labels:
+        app.kubernetes.io/name: sts-webhook
+    spec:
+      # Discourage multiple replicas from co-locating on the same node
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - sts-webhook
+              weight: 50
+      containers:
+        - name: sts-webhook
+          image: ghcr.io/gatenlp/minio-sts-webhook:dev
+          imagePullPolicy: Always
+          # To use a stable release:
+          #image: ghcr.io/gatenlp/minio-sts-webhook:0.1
+          #imagePullPolicy: IfNotPresent
+          env:
+            # Token audience MUST match the client_id you set when registering
+            # the oidc idp with Minio
+            - name: TOKEN_AUDIENCE
+              value: api://kubernetes
+            # Copy the role ARN from the minio idp registration
+            - name: AWS_ROLE_ARN
+              value: arn:minio:iam:::role/long-random-id-from-minio
+            # The S3 and STS endpoints - for Minio these will be the same
+            - name: AWS_ENDPOINT_URL_S3
+              value: https://my-minio.example.com:9000
+            - name: AWS_ENDPOINT_URL_STS
+              value: https://my-minio.example.com:9000
+            # If you have built a custom sidecar image with your Minio CA cert,
+            # specify it here
+            #- name: SIDECAR_IMAGE
+            #  value: my-registry.example.com/minio-sts-sidecar:latest
+            # Other optional settings, with defaults
+            #- name: AWS_REGION
+            #  value: us-east-1
+            #- name: TOKEN_MOUNT_PATH
+            #  value: /var/run/secrets/sts.gate.ac.uk/serviceaccount
+            #- name: TOKEN_EXPIRATION
+            #  value: "15m"
+          ports:
+            - containerPort: 9443
+              name: webhook-server
+              protocol: TCP
+            - containerPort: 9440
+              name: health
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              port: health
+              path: /readyz
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              port: health
+              path: /healthz
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - mountPath: /certs
+              name: certs
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 65532
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+      restartPolicy: Always
+      volumes:
+        # TLS certificate volume
+        - name: certs
+          secret:
+            secretName: sts-webhook-tls
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: sts-webhook
+  namespace: minio-sts
+  labels:
+    app.kubernetes.io/name: sts-webhook
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: sts-webhook
+  ports:
+    - port: 443
+      targetPort: 9443
