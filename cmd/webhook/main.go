@@ -67,6 +67,15 @@ func main() {
 		log.Error(err, "unable to set up controller manager")
 		os.Exit(1)
 	}
+	startedChecker := mgr.GetWebhookServer().StartedChecker()
+	if err := mgr.AddReadyzCheck("readyz", startedChecker); err != nil {
+		log.Error(err, "Unable to set up ready check")
+		os.Exit(1)
+	}
+	if err := mgr.AddHealthzCheck("healthz", startedChecker); err != nil {
+		log.Error(err, "Unable to set up health check")
+		os.Exit(1)
+	}
 	mgr.GetWebhookServer().Register("/mutate-v1-pod", &webhook.Admission{Handler: handler})
 	if err := mgr.Start(ctx); err != nil {
 		log.Error(err, "unable to run manager")
