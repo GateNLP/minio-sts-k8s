@@ -111,7 +111,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) (respons
 				onlyContainers[strings.TrimSpace(c)] = true
 			}
 
-			containers = make([]*corev1.Container, len(onlyContainers))
+			containers = make([]*corev1.Container, 0, len(onlyContainers))
 			for i := range pod.Spec.Containers {
 				if onlyContainers[pod.Spec.Containers[i].Name] {
 					containers = append(containers, &pod.Spec.Containers[i])
@@ -131,7 +131,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) (respons
 				exceptContainers[strings.TrimSpace(c)] = true
 			}
 
-			containers = make([]*corev1.Container, len(pod.Spec.Containers)+len(pod.Spec.InitContainers))
+			containers = make([]*corev1.Container, 0, len(pod.Spec.Containers)+len(pod.Spec.InitContainers))
 			for i := range pod.Spec.Containers {
 				if !exceptContainers[pod.Spec.Containers[i].Name] {
 					containers = append(containers, &pod.Spec.Containers[i])
@@ -149,7 +149,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) (respons
 	}
 	if containers == nil {
 		// no only/except restrictions, so use all containers
-		containers = make([]*corev1.Container, len(pod.Spec.Containers)+len(pod.Spec.InitContainers))
+		containers = make([]*corev1.Container, 0, len(pod.Spec.Containers)+len(pod.Spec.InitContainers))
 		for i := range pod.Spec.Containers {
 			containers = append(containers, &pod.Spec.Containers[i])
 		}
@@ -255,7 +255,7 @@ func (m *podMutator) injectAsSidecar(pod *corev1.Pod, containers []*corev1.Conta
 	}
 	// prepend the sidecar to the pod, so it starts before any other init containers
 	// (which may themselves need to access the STS credentials)
-	newContainers := make([]corev1.Container, len(pod.Spec.InitContainers)+1)
+	newContainers := make([]corev1.Container, 0, len(pod.Spec.InitContainers)+1)
 	newContainers = append(newContainers, sidecar)
 	newContainers = append(newContainers, pod.Spec.InitContainers...)
 	pod.Spec.InitContainers = newContainers
