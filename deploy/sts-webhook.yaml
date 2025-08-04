@@ -56,6 +56,10 @@ spec:
             # specify it here
             #- name: SIDECAR_IMAGE
             #  value: my-registry.example.com/minio-sts-sidecar:latest
+            # Or if you're using a tagged version of the webhook image then
+            # it is a good idea to use the matching version of the sidecar
+            #- name: SIDECAR_IMAGE
+            #  value: ghcr.io/gatenlp/minio-sts-sidecar:0.1
             # Other optional settings, with defaults
             #- name: AWS_REGION
             #  value: us-east-1
