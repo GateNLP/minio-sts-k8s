@@ -34,7 +34,7 @@ func init() {
 func main() {
 	crlog.SetLogger(zap.New())
 	log := controllerruntime.Log.WithName("entrypoint")
-	defaultExpiration := 15 * time.Minute
+	defaultExpiration := 20 * time.Minute
 	if parsed, err := time.ParseDuration(os.Getenv("TOKEN_EXPIRATION")); err != nil {
 		defaultExpiration = parsed
 	}

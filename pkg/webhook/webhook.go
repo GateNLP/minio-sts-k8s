@@ -10,6 +10,7 @@ import (
 	crlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"strings"
+	"time"
 )
 
 const (
@@ -35,6 +36,8 @@ const (
 	TokenVolumeName        = "gate-sts-token"
 	TokenFileName          = "token"
 	DefaultTokenMountPoint = "/var/run/secrets/sts.gate.ac.uk/serviceaccount"
+
+	AnnTokenLifetime = "sts.gate.ac.uk/token-lifetime"
 
 	EnvWebIdentityTokenFile = "AWS_WEB_IDENTITY_TOKEN_FILE"
 	EnvRoleArn              = "AWS_ROLE_ARN"
@@ -282,6 +285,18 @@ func (m *podMutator) addTokenVolume(pod *corev1.Pod) {
 		}
 	}
 
+	expirationSeconds := m.tokenExpiration
+	if pod.Annotations != nil {
+		expiryFromAnn := pod.Annotations[AnnTokenLifetime]
+		val, err := time.ParseDuration(expiryFromAnn)
+		if err == nil {
+			secondsFromAnn := int64(val.Seconds())
+			if secondsFromAnn >= 600 && secondsFromAnn <= 86400 {
+				expirationSeconds = secondsFromAnn
+			}
+		}
+	}
+
 	vol := corev1.Volume{
 		Name: TokenVolumeName,
 		VolumeSource: corev1.VolumeSource{
@@ -290,7 +305,7 @@ func (m *podMutator) addTokenVolume(pod *corev1.Pod) {
 					{
 						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 							Audience:          m.tokenAudience,
-							ExpirationSeconds: &m.tokenExpiration,
+							ExpirationSeconds: &expirationSeconds,
 							Path:              TokenFileName,
 						},
 					},
