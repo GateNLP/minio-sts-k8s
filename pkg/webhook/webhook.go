@@ -218,7 +218,7 @@ func (m *podMutator) injectAsSidecar(pod *corev1.Pod, containers []*corev1.Conta
 			PeriodSeconds:    1,
 			ProbeHandler: corev1.ProbeHandler{
 				Exec: &corev1.ExecAction{
-					Command: []string{"/sidecar", "probe"},
+					Command: []string{"/sts-sidecar", "probe"},
 				},
 			},
 		},
