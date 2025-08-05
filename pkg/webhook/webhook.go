@@ -78,6 +78,8 @@ func NewMutator(scheme *runtime.Scheme, mountPoint string, audience string, toke
 	if region == "" {
 		region = DefaultRegion
 	}
+	log := crlog.Log.WithName("sts-webhook")
+	log.Info("creating webhook handler", "mountPoint", mountPoint, "audience", audience, "roleArn", roleArn, "expiration", tokenExpiration, "stsEndpoint", stsEndpoint, "s3Endpoint", s3Endpoint, "region", region, "sidecarImage", sidecarImage)
 	return &podMutator{
 		decoder:         admission.NewDecoder(scheme),
 		mountPoint:      mountPoint,

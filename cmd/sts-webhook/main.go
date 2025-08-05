@@ -35,7 +35,7 @@ func main() {
 	crlog.SetLogger(zap.New())
 	log := controllerruntime.Log.WithName("entrypoint")
 	defaultExpiration := 20 * time.Minute
-	if parsed, err := time.ParseDuration(os.Getenv("TOKEN_EXPIRATION")); err != nil {
+	if parsed, err := time.ParseDuration(os.Getenv("TOKEN_EXPIRATION")); err == nil {
 		defaultExpiration = parsed
 	}
 	flag.StringVar(&certDir, "cert-dir", "/certs", "Directory containing TLS certificates for webhook (default /certs)")
