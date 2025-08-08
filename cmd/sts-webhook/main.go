@@ -18,6 +18,7 @@ import (
 var (
 	certDir         string
 	scheme          = runtime.NewScheme()
+	useLabel        string
 	tokenMountPoint string
 	tokenAudience   string
 	tokenExpiration time.Duration
@@ -40,6 +41,7 @@ func main() {
 		defaultExpiration = parsed
 	}
 	flag.StringVar(&certDir, "cert-dir", "/certs", "Directory containing TLS certificates for webhook (default /certs)")
+	flag.StringVar(&useLabel, "label", os.Getenv("USE_LABEL"), "Pod label that the webhook will look for when deciding which pods to inject (default "+wh.DefaultUseLabel+")")
 	flag.StringVar(&tokenAudience, "audience", os.Getenv("TOKEN_AUDIENCE"), "Audience for the projected token")
 	flag.StringVar(&tokenMountPoint, "token-mount-path", os.Getenv("TOKEN_MOUNT_PATH"), "Directory inside containers where \"token\" file should be projected")
 	flag.StringVar(&roleArn, "role-arn", os.Getenv("AWS_ROLE_ARN"), "Role ARN to assume")
@@ -53,7 +55,7 @@ func main() {
 
 	ctx := signals.SetupSignalHandler()
 
-	handler := wh.NewMutator(scheme, tokenMountPoint, tokenAudience, int64(tokenExpiration.Seconds()), roleArn, stsEndpoint, s3Endpoint, region, sidecarImage)
+	handler := wh.NewMutator(scheme, useLabel, tokenMountPoint, tokenAudience, int64(tokenExpiration.Seconds()), roleArn, stsEndpoint, s3Endpoint, region, sidecarImage)
 
 	config := controllerruntime.GetConfigOrDie()
 	mgr, err := controllerruntime.NewManager(config, controllerruntime.Options{

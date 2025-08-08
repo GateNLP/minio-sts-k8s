@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	// UseLabel is the label we look for to know whether a pod needs STS credentials at all
-	UseLabel = "sts.gate.ac.uk/use"
+	// DefaultUseLabel is the default label we look for to know whether a pod needs STS
+	// credentials at all
+	DefaultUseLabel = "sts.gate.ac.uk/use"
 
 	// AnnMode is the annotation specifying whether to inject config for containers to
 	// do their own AssumeRoleWithWebIdentity, or to run a sidecar that talks to STS and
@@ -53,6 +54,7 @@ const (
 
 type podMutator struct {
 	decoder         admission.Decoder
+	useLabel        string
 	mountPoint      string
 	tokenAudience   string
 	tokenExpiration int64
@@ -63,7 +65,10 @@ type podMutator struct {
 	sidecarImage    string
 }
 
-func NewMutator(scheme *runtime.Scheme, mountPoint string, audience string, tokenExpiration int64, roleArn string, stsEndpoint, s3Endpoint, region string, sidecarImage string) admission.Handler {
+func NewMutator(scheme *runtime.Scheme, useLabel string, mountPoint string, audience string, tokenExpiration int64, roleArn string, stsEndpoint, s3Endpoint, region string, sidecarImage string) admission.Handler {
+	if useLabel == "" {
+		useLabel = DefaultUseLabel
+	}
 	if mountPoint == "" {
 		mountPoint = DefaultTokenMountPoint
 	}
@@ -83,6 +88,7 @@ func NewMutator(scheme *runtime.Scheme, mountPoint string, audience string, toke
 	log.Info("creating webhook handler", "mountPoint", mountPoint, "audience", audience, "roleArn", roleArn, "expiration", tokenExpiration, "stsEndpoint", stsEndpoint, "s3Endpoint", s3Endpoint, "region", region, "sidecarImage", sidecarImage)
 	return &podMutator{
 		decoder:         admission.NewDecoder(scheme),
+		useLabel:        useLabel,
 		mountPoint:      mountPoint,
 		tokenAudience:   audience,
 		tokenExpiration: tokenExpiration,
@@ -105,7 +111,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) (respons
 	log = log.WithValues("pod", pod.Name, "namespace", req.Namespace)
 
 	// short circuit if this pod does not require our additions
-	if pod.Labels == nil || pod.Labels[UseLabel] != "true" {
+	if pod.Labels == nil || pod.Labels[m.useLabel] != "true" {
 		return admission.Allowed("Pod has not opted in to STS credentials")
 	}
 

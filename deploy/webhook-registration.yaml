@@ -23,6 +23,8 @@ webhooks:
     matchPolicy: Equivalent
     objectSelector:
       matchLabels:
+        # If you have customized the USE_LABEL in the webhook deployment,
+        # update this selector to match
         sts.gate.ac.uk/use: "true"
     reinvocationPolicy: IfNeeded
     rules:

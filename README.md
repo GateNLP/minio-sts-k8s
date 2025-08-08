@@ -90,7 +90,7 @@ This is a lot of boilerplate to enable token authentication, and if you have man
 
 > Note that the label goes on the _pod_; for a _deployment_ or _statefulset_ the label needs to be under `spec.template.metadata.labels`, not in the top level `metadata.labels`
 
-Normally, if a pod is labelled `sts.gate.ac.uk/use: "true"` then _all_ containers and `initContainers` in the pod will have the token mounted at `/var/run/secrets/sts.gate.ac.uk/serviceaccount/token` and the above environment variables set.  Additional pod _annotations_ can be used to customise this behaviour:
+Normally, if a pod is labelled appropriately then _all_ containers and `initContainers` in the pod will have the token mounted at `/var/run/secrets/sts.gate.ac.uk/serviceaccount/token` and the above environment variables set.  Additional pod _annotations_ can be used to customise this behaviour:
 
 - `sts.gate.ac.uk/only-containers` - a comma-separated list of _container_ names.  If set, _only_ the containers/initContainers with these names will have the token and environment variables injected.
 - `sts.gate.ac.uk/except-containers` - a comma-separated list of container names.  This is the inverse of `only-containers` - if set, the token and environment will be injected into all containers & initContainers _except_ the ones with these names.
@@ -185,3 +185,7 @@ If you do not have cert-manager then you will need to use some other mechanism t
 An example manifest for deploying the webhook is available at [deploy/sts-webhook.yaml](deploy/sts-webhook.yaml) - this will not deploy as-is, you **must** edit at least the audience, role ARN and endpoint URL settings before deploying.
 
 Once the deployment is up and running, use [deploy/webhook-registration.yaml](deploy/webhook-registration.yaml) to register the hook with the Kubernetes apiserver.  The sample manifest assumes you are using cert-manager to provision the certificate, if not then you will need to edit the manifest to remove the `inject-ca-from` annotation and add the `caBundle` data by hand.
+
+If you want to run multiple independent copies of the webhook, e.g. if you have more than one Minio installation or multiple role policy providers configured in your Minio, then you can customise the name of the pod label that the webhook will look for - each webhook deployment must use a different label, e.g. `sts.gate.ac.uk/use-public` vs `sts.gate.ac.uk/use-internal`.  Edit the `USE_LABEL` environment variable in the webhook deployment, and modify the `objectSelector` in the webhook registration to match.
+
+> **Note** any single pod can only be marked with _one_ of the labels, since both of the webhooks will be attempting to set the same environment variables on their target pods.  If the same pod is labelled to be processed by both webhooks it is undefined which one will "win", and it may not be the same one for every pod even when they are created from the same deployment/statefulset/job.

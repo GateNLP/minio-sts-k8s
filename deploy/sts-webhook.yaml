@@ -67,6 +67,8 @@ spec:
             #  value: /var/run/secrets/sts.gate.ac.uk/serviceaccount
             #- name: TOKEN_EXPIRATION
             #  value: "15m"
+            #- name: USE_LABEL
+            #  value: "sts.gate.ac.uk/use"
           ports:
             - containerPort: 9443
               name: webhook-server
