@@ -189,81 +189,94 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) (respons
 // variables to each container in `containers` that will cause an AWS SDK in
 // that container to request credentials from the sidecar.
 func (m *podMutator) injectAsSidecar(pod *corev1.Pod, containers []*corev1.Container) error {
+	hasSidecar := false
 	for i := range pod.Spec.InitContainers {
 		if pod.Spec.InitContainers[i].Name == SidecarContainerName {
 			// sidecar container has already been added
-			return nil
+			hasSidecar = true
+			break
 		}
 	}
 	m.addTokenVolume(pod)
 
-	restartPolicy := corev1.ContainerRestartPolicy("Always")
-	varFalse := false
-	varTrue := true
-	var uid int64 = 65532
-	var gid int64 = 65532
-	sidecar := corev1.Container{
-		Name:            SidecarContainerName,
-		Image:           m.sidecarImage,
-		ImagePullPolicy: "IfNotPresent",
-		RestartPolicy:   &restartPolicy,
-		// we need a startup probe so that the other containers that might
-		// call the credentials endpoint do not start up until the endpoint
-		// is listening.  The obvious way to do this would be an httpGet
-		// probe, but we can't use one of those because we only want the
-		// sidecar to listen on the pod-internal 127.0.0.1 address (otherwise
-		// anything in the cluster would be able to access the storage server
-		// with the rights of this pod's service account by calling the
-		// sidecar endpoint).  So the sidecar binary implements its own
-		// probe mode that calls the probe endpoint on 127.0.0.1 and exits
-		// 0 only when the endpoint is up, and we use this via an exec probe.
-		StartupProbe: &corev1.Probe{
-			SuccessThreshold: 1,
-			FailureThreshold: 30,
-			PeriodSeconds:    1,
-			ProbeHandler: corev1.ProbeHandler{
-				Exec: &corev1.ExecAction{
-					Command: []string{"/sts-sidecar", "probe"},
-				},
-			},
-		},
-		SecurityContext: &corev1.SecurityContext{
-			AllowPrivilegeEscalation: &varFalse,
-			Capabilities: &corev1.Capabilities{
-				Drop: []corev1.Capability{corev1.Capability("ALL")},
-			},
-			ReadOnlyRootFilesystem: &varTrue,
-			RunAsNonRoot:           &varTrue,
-			RunAsUser:              &uid,
-			RunAsGroup:             &gid,
-			SeccompProfile: &corev1.SeccompProfile{
-				Type: corev1.SeccompProfileTypeRuntimeDefault,
-			},
-		},
-	}
 	sidecarPort := DefaultSidecarPort
 	if pod.Annotations != nil && pod.Annotations[AnnSidecarPort] != "" {
 		sidecarPort = pod.Annotations[AnnSidecarPort]
-		sidecar.Env = []corev1.EnvVar{
-			{Name: EnvSidecarPort, Value: sidecarPort},
+	}
+
+	var sidecar *corev1.Container
+	if !hasSidecar {
+		restartPolicy := corev1.ContainerRestartPolicy("Always")
+		varFalse := false
+		varTrue := true
+		var uid int64 = 65532
+		var gid int64 = 65532
+		sidecar = &corev1.Container{
+			Name:            SidecarContainerName,
+			Image:           m.sidecarImage,
+			ImagePullPolicy: "IfNotPresent",
+			RestartPolicy:   &restartPolicy,
+			// we need a startup probe so that the other containers that might
+			// call the credentials endpoint do not start up until the endpoint
+			// is listening.  The obvious way to do this would be an httpGet
+			// probe, but we can't use one of those because we only want the
+			// sidecar to listen on the pod-internal 127.0.0.1 address (otherwise
+			// anything in the cluster would be able to access the storage server
+			// with the rights of this pod's service account by calling the
+			// sidecar endpoint).  So the sidecar binary implements its own
+			// probe mode that calls the probe endpoint on 127.0.0.1 and exits
+			// 0 only when the endpoint is up, and we use this via an exec probe.
+			StartupProbe: &corev1.Probe{
+				SuccessThreshold: 1,
+				FailureThreshold: 30,
+				PeriodSeconds:    1,
+				ProbeHandler: corev1.ProbeHandler{
+					Exec: &corev1.ExecAction{
+						Command: []string{"/sts-sidecar", "probe"},
+					},
+				},
+			},
+			SecurityContext: &corev1.SecurityContext{
+				AllowPrivilegeEscalation: &varFalse,
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{corev1.Capability("ALL")},
+				},
+				ReadOnlyRootFilesystem: &varTrue,
+				RunAsNonRoot:           &varTrue,
+				RunAsUser:              &uid,
+				RunAsGroup:             &gid,
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: corev1.SeccompProfileTypeRuntimeDefault,
+				},
+			},
+		}
+
+		if sidecarPort != DefaultSidecarPort {
+			sidecar.Env = []corev1.EnvVar{
+				{Name: EnvSidecarPort, Value: sidecarPort},
+			}
+		}
+		// inject into the sidecar the token and env vars needed to authenticate direct
+		if err := m.injectDirect(pod, []*corev1.Container{sidecar}); err != nil {
+			return err
 		}
 	}
-	// inject into the sidecar the token and env vars needed to authenticate direct
-	if err := m.injectDirect(pod, []*corev1.Container{&sidecar}); err != nil {
-		return err
-	}
+
 	// inject into the other containers the env vars needed to authenticate using the sidecar
 	for _, c := range containers {
 		if c.Name != SidecarContainerName {
 			m.injectEnvironmentSidecar(c, sidecarPort)
 		}
 	}
-	// prepend the sidecar to the pod, so it starts before any other init containers
-	// (which may themselves need to access the STS credentials)
-	newContainers := make([]corev1.Container, 0, len(pod.Spec.InitContainers)+1)
-	newContainers = append(newContainers, sidecar)
-	newContainers = append(newContainers, pod.Spec.InitContainers...)
-	pod.Spec.InitContainers = newContainers
+
+	if sidecar != nil {
+		// prepend the sidecar to the pod, so it starts before any other init containers
+		// (which may themselves need to access the STS credentials)
+		newContainers := make([]corev1.Container, 0, len(pod.Spec.InitContainers)+1)
+		newContainers = append(newContainers, *sidecar)
+		newContainers = append(newContainers, pod.Spec.InitContainers...)
+		pod.Spec.InitContainers = newContainers
+	}
 	return nil
 }
 
