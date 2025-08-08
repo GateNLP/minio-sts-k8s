@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"net/http"
-	crlog "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"strings"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	crlog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 const (
@@ -239,7 +240,7 @@ func (m *podMutator) injectAsSidecar(pod *corev1.Pod, containers []*corev1.Conta
 			SecurityContext: &corev1.SecurityContext{
 				AllowPrivilegeEscalation: &varFalse,
 				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{corev1.Capability("ALL")},
+					Drop: []corev1.Capability{"ALL"},
 				},
 				ReadOnlyRootFilesystem: &varTrue,
 				RunAsNonRoot:           &varTrue,

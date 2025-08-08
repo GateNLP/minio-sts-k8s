@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/GateNLP/minio-sts-k8s/pkg/sidecar"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/GateNLP/minio-sts-k8s/pkg/sidecar"
+	"go.uber.org/zap"
 )
 
 const (

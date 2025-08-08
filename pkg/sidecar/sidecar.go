@@ -3,10 +3,11 @@ package sidecar
 import (
 	"context"
 	"encoding/json"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"go.uber.org/zap"
 	"net/http"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"go.uber.org/zap"
 )
 
 type CredentialResponse struct {
